@@ -1,26 +1,8 @@
 import { useMemo, useState } from 'react'
 import './App.css'
 
-const API_BASE_URL = 'https://transportapi.com/v3/uk/places.json'
-const POSTCODE_BASE_URL = 'https://api.postcodes.io/postcodes'
-
-const defaultCredentials = {
-  appId: sessionStorage.getItem('transportapi_app_id') || '',
-  appKey: sessionStorage.getItem('transportapi_app_key') || '',
-}
-
-function parseCoordinateSearch(searchText) {
-  const parts = searchText
-    .split(',')
-    .map((part) => Number.parseFloat(part.trim()))
-    .filter((part) => Number.isFinite(part))
-
-  if (parts.length !== 2) {
-    return null
-  }
-
-  return { lat: parts[0], lon: parts[1], label: `${parts[0]}, ${parts[1]}` }
-}
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
 function formatDistance(distance) {
   if (!Number.isFinite(distance)) {
@@ -39,7 +21,6 @@ function stopKey(stop, index) {
 }
 
 function App() {
-  const [credentials, setCredentials] = useState(defaultCredentials)
   const [searchText, setSearchText] = useState('51.5074, -0.1278')
   const [stops, setStops] = useState([])
   const [source, setSource] = useState('London coordinates')
@@ -62,64 +43,24 @@ function App() {
   }, [filter, stops])
 
   const nearestStop = stops[0]
-  const hasCredentials = credentials.appId.trim() && credentials.appKey.trim()
 
-  function updateCredential(field, value) {
-    const next = { ...credentials, [field]: value }
-    setCredentials(next)
-    sessionStorage.setItem(
-      field === 'appId' ? 'transportapi_app_id' : 'transportapi_app_key',
-      value,
-    )
-  }
-
-  async function resolveLocation() {
-    const coordinateSearch = parseCoordinateSearch(searchText)
-
-    if (coordinateSearch) {
-      return coordinateSearch
-    }
-
-    const postcode = searchText.trim()
-
-    if (!postcode) {
-      throw new Error('Enter a postcode or coordinates.')
-    }
-
-    const response = await fetch(
-      `${POSTCODE_BASE_URL}/${encodeURIComponent(postcode)}`,
-    )
-    const data = await response.json()
-
-    if (!response.ok || !data.result) {
-      throw new Error('Postcode was not found.')
-    }
-
-    return {
-      lat: data.result.latitude,
-      lon: data.result.longitude,
-      label: data.result.postcode,
-    }
-  }
-
-  async function fetchBusStops(location) {
+  async function fetchBusStops() {
     const params = new URLSearchParams({
-      app_id: credentials.appId.trim(),
-      app_key: credentials.appKey.trim(),
-      lat: String(location.lat),
-      lon: String(location.lon),
-      type: 'bus_stop',
+      query: searchText.trim(),
     })
 
-    const response = await fetch(`${API_BASE_URL}?${params.toString()}`)
+    const response = await fetch(`${API_BASE_URL}/api/bus-stops?${params}`)
     const data = await response.json().catch(() => null)
 
     if (!response.ok) {
-      const message = data?.error || data?.message || 'TransportAPI request failed.'
+      const message = data?.detail || 'Bus stop search failed.'
       throw new Error(message)
     }
 
-    return Array.isArray(data.member) ? data.member : []
+    return {
+      source: data.source || searchText,
+      stops: Array.isArray(data.stops) ? data.stops : [],
+    }
   }
 
   async function handleSearch(event) {
@@ -128,14 +69,13 @@ function App() {
     setError('')
 
     try {
-      if (!hasCredentials) {
-        throw new Error('Add your TransportAPI app_id and app_key.')
+      if (!searchText.trim()) {
+        throw new Error('Enter a postcode or coordinates.')
       }
 
-      const location = await resolveLocation()
-      const results = await fetchBusStops(location)
-      setStops(results)
-      setSource(location.label)
+      const results = await fetchBusStops()
+      setStops(results.stops)
+      setSource(results.source)
       setFilter('')
       setStatus('success')
     } catch (searchError) {
@@ -189,28 +129,6 @@ function App() {
 
       <section className="control-band">
         <form className="search-panel" onSubmit={handleSearch}>
-          <label>
-            <span>app_id</span>
-            <input
-              type="text"
-              value={credentials.appId}
-              onChange={(event) => updateCredential('appId', event.target.value)}
-              placeholder="TransportAPI app_id"
-              autoComplete="off"
-            />
-          </label>
-
-          <label>
-            <span>app_key</span>
-            <input
-              type="password"
-              value={credentials.appKey}
-              onChange={(event) => updateCredential('appKey', event.target.value)}
-              placeholder="TransportAPI app_key"
-              autoComplete="off"
-            />
-          </label>
-
           <label className="location-field">
             <span>Location</span>
             <input
@@ -288,7 +206,7 @@ function App() {
           ) : (
             <div className="empty-state">
               <h3>No bus stops to show</h3>
-              <p>Search with TransportAPI credentials to populate this dashboard.</p>
+              <p>Search by postcode or coordinates to populate this dashboard.</p>
             </div>
           )}
         </div>

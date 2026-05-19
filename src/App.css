@@ -73,7 +73,7 @@
 
 .search-panel {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(180px, 1fr) minmax(210px, 1.2fr) auto;
+  grid-template-columns: minmax(260px, 1fr) auto;
   gap: 14px;
   align-items: end;
 }
