@@ -159,7 +159,7 @@ button.secondary:hover {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: 0.7fr 1.4fr 1fr;
+  grid-template-columns: 0.55fr 1.2fr 0.9fr 1.2fr;
   gap: 1px;
   background: #dbe3ea;
 }
@@ -186,8 +186,16 @@ button.secondary:hover {
   line-height: 1.2;
 }
 
-.results-section {
+.display-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.68fr) minmax(520px, 0.82fr);
+  gap: 20px;
   padding: 26px 32px 38px;
+}
+
+.stop-browser,
+.departures-panel {
+  min-width: 0;
 }
 
 .results-toolbar {
@@ -219,18 +227,38 @@ button.secondary:hover {
 
 .stop-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(360px, 1.45fr);
+  grid-template-columns: minmax(220px, 1fr) auto;
   gap: 18px;
   align-items: center;
+  width: 100%;
+  min-height: 0;
   padding: 15px 16px;
   border: 1px solid #d7e0e7;
   border-radius: 8px;
   background: #ffffff;
+  color: inherit;
   text-align: left;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    transform 0.2s;
+}
+
+.stop-row:hover,
+.stop-row.selected {
+  border-color: #126396;
+  background: #f8fbfd;
+  box-shadow: 0 7px 22px rgba(18, 99, 150, 0.09);
+}
+
+.stop-row.selected {
+  transform: translateY(-1px);
 }
 
 .stop-main h3,
-.empty-state h3 {
+.empty-state h3,
+.selected-stop h3,
+.departure-row h3 {
   margin: 0;
   color: #15202b;
   font-size: 17px;
@@ -238,7 +266,9 @@ button.secondary:hover {
 }
 
 .stop-main p,
-.empty-state p {
+.empty-state p,
+.selected-stop p,
+.departure-row p {
   margin: 5px 0 0;
   color: #637887;
   font-size: 14px;
@@ -246,8 +276,9 @@ button.secondary:hover {
 
 .stop-meta {
   display: grid;
-  grid-template-columns: 1fr 0.7fr 1fr;
+  grid-template-columns: auto;
   gap: 8px;
+  justify-content: end;
 }
 
 .stop-meta span {
@@ -272,6 +303,81 @@ button.secondary:hover {
   text-align: center;
 }
 
+.empty-state.compact {
+  padding: 30px 18px;
+}
+
+.departures-panel {
+  align-self: start;
+  border: 1px solid #d7e0e7;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.departures-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid #dbe3ea;
+  background: #f8fbfd;
+}
+
+.departures-header h2 {
+  margin: 0;
+  color: #15202b;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.selected-stop {
+  padding: 16px 18px;
+  border-bottom: 1px solid #e2e9ee;
+}
+
+.departures-error {
+  margin: 14px 18px 0;
+}
+
+.departure-list {
+  display: grid;
+  gap: 0;
+}
+
+.departure-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 15px 18px;
+  border-bottom: 1px solid #edf2f5;
+  text-align: left;
+}
+
+.departure-row:last-child {
+  border-bottom: 0;
+}
+
+.route-badge {
+  display: grid;
+  place-items: center;
+  min-width: 42px;
+  min-height: 42px;
+  border-radius: 7px;
+  background: #17202a;
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.departure-row time {
+  color: #126396;
+  font-size: 22px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 @media (max-width: 980px) {
   .topbar,
   .results-toolbar {
@@ -281,7 +387,8 @@ button.secondary:hover {
 
   .search-panel,
   .metrics-grid,
-  .stop-row {
+  .stop-row,
+  .display-grid {
     grid-template-columns: 1fr;
   }
 

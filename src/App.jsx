@@ -16,6 +16,15 @@ function formatDistance(distance) {
   return `${Math.round(distance)} m`
 }
 
+function displayDepartureTime(departure) {
+  return (
+    departure.best_departure_estimate ||
+    departure.expected_departure_time ||
+    departure.aimed_departure_time ||
+    'TBC'
+  )
+}
+
 function stopKey(stop, index) {
   return stop.atcocode || stop.tiploc || stop.station_code || `${stop.name}-${index}`
 }
@@ -27,6 +36,10 @@ function App() {
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('')
+  const [selectedStop, setSelectedStop] = useState(null)
+  const [departures, setDepartures] = useState([])
+  const [departuresStatus, setDeparturesStatus] = useState('idle')
+  const [departuresError, setDeparturesError] = useState('')
 
   const filteredStops = useMemo(() => {
     const term = filter.trim().toLowerCase()
@@ -43,6 +56,7 @@ function App() {
   }, [filter, stops])
 
   const nearestStop = stops[0]
+  const selectedStopName = selectedStop?.name || 'No stop selected'
 
   async function fetchBusStops() {
     const params = new URLSearchParams({
@@ -63,10 +77,34 @@ function App() {
     }
   }
 
+  async function fetchDepartures(stop) {
+    if (!stop.atcocode) {
+      throw new Error('This stop does not include an ATCO code.')
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/bus-stops/${encodeURIComponent(
+        stop.atcocode,
+      )}/departures?limit=5`,
+    )
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      const message = data?.detail || 'Live departures failed.'
+      throw new Error(message)
+    }
+
+    return Array.isArray(data.departures) ? data.departures : []
+  }
+
   async function handleSearch(event) {
     event.preventDefault()
     setStatus('loading')
     setError('')
+    setSelectedStop(null)
+    setDepartures([])
+    setDeparturesError('')
+    setDeparturesStatus('idle')
 
     try {
       if (!searchText.trim()) {
@@ -81,6 +119,22 @@ function App() {
     } catch (searchError) {
       setError(searchError.message)
       setStatus('error')
+    }
+  }
+
+  async function selectStop(stop) {
+    setSelectedStop(stop)
+    setDepartures([])
+    setDeparturesError('')
+    setDeparturesStatus('loading')
+
+    try {
+      const results = await fetchDepartures(stop)
+      setDepartures(results)
+      setDeparturesStatus('success')
+    } catch (departureError) {
+      setDeparturesError(departureError.message)
+      setDeparturesStatus('error')
     }
   }
 
@@ -115,7 +169,7 @@ function App() {
       <header className="topbar">
         <div>
           <p className="eyebrow">TransportAPI Places</p>
-          <h1>Bus stop dashboard</h1>
+          <h1>Live bus stop display</h1>
         </div>
         <div className="status-pill">
           <span className={`status-dot ${status}`}></span>
@@ -165,51 +219,107 @@ function App() {
           <span>Search source</span>
           <strong>{source}</strong>
         </article>
+        <article>
+          <span>Selected stop</span>
+          <strong>{selectedStopName}</strong>
+        </article>
       </section>
 
-      <section className="results-section">
-        <div className="results-toolbar">
-          <div>
-            <h2>Bus stops</h2>
-            <p>{filteredStops.length} visible results</p>
+      <section className="display-grid">
+        <div className="stop-browser">
+          <div className="results-toolbar">
+            <div>
+              <h2>Bus stops</h2>
+              <p>{filteredStops.length} visible results</p>
+            </div>
+            <label className="filter-field">
+              <span>Filter</span>
+              <input
+                type="search"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                placeholder="Name, area, ATCO"
+              />
+            </label>
           </div>
-          <label className="filter-field">
-            <span>Filter</span>
-            <input
-              type="search"
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-              placeholder="Name, area, ATCO"
-            />
-          </label>
+
+          <div className="stops-list">
+            {filteredStops.length ? (
+              filteredStops.map((stop, index) => (
+                <button
+                  className={`stop-row ${
+                    selectedStop?.atcocode === stop.atcocode ? 'selected' : ''
+                  }`}
+                  key={stopKey(stop, index)}
+                  type="button"
+                  onClick={() => selectStop(stop)}
+                >
+                  <div className="stop-main">
+                    <h3>{stop.name || 'Unnamed stop'}</h3>
+                    <p>{stop.description || 'No locality provided'}</p>
+                  </div>
+                  <div className="stop-meta">
+                    <span>{formatDistance(Number(stop.distance))}</span>
+                  </div>
+                </button>
+              ))
+            ) : (
+              <div className="empty-state">
+                <h3>No bus stops to show</h3>
+                <p>Search by postcode or coordinates to populate this dashboard.</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="stops-list">
-          {filteredStops.length ? (
-            filteredStops.map((stop, index) => (
-              <article className="stop-row" key={stopKey(stop, index)}>
-                <div className="stop-main">
-                  <h3>{stop.name || 'Unnamed stop'}</h3>
-                  <p>{stop.description || 'No locality provided'}</p>
-                </div>
-                <div className="stop-meta">
-                  <span>{stop.atcocode || 'No ATCO'}</span>
-                  <span>{formatDistance(Number(stop.distance))}</span>
-                  <span>
-                    {Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)
-                      ? `${stop.latitude.toFixed(5)}, ${stop.longitude.toFixed(5)}`
-                      : 'No coordinates'}
-                  </span>
-                </div>
-              </article>
-            ))
-          ) : (
-            <div className="empty-state">
-              <h3>No bus stops to show</h3>
-              <p>Search by postcode or coordinates to populate this dashboard.</p>
+        <aside className="departures-panel">
+          <div className="departures-header">
+            <div>
+              <p className="eyebrow">Live display</p>
+              <h2>Next five buses</h2>
             </div>
-          )}
-        </div>
+            <span className={`status-dot ${departuresStatus}`}></span>
+          </div>
+
+          {selectedStop ? (
+            <div className="selected-stop">
+              <h3>{selectedStop.name}</h3>
+              <p>{selectedStop.description || selectedStop.atcocode}</p>
+            </div>
+          ) : null}
+
+          {departuresError ? (
+            <p className="error-message departures-error">{departuresError}</p>
+          ) : null}
+
+          <div className="departure-list">
+            {departures.length ? (
+              departures.map((departure, index) => (
+                <article
+                  className="departure-row"
+                  key={`${departure.line}-${departure.departure_date}-${index}`}
+                >
+                  <div className="route-badge">{departure.line || '-'}</div>
+                  <div>
+                    <h3>{departure.direction || 'Direction unavailable'}</h3>
+                    <p>{departure.operator_name || departure.source || 'Bus service'}</p>
+                  </div>
+                  <time>{displayDepartureTime(departure)}</time>
+                </article>
+              ))
+            ) : selectedStop && departuresStatus === 'loading' ? (
+              <div className="empty-state compact">
+                <h3>Loading departures</h3>
+                <p>Fetching live times for the selected stop.</p>
+              </div>
+            ) : (
+              <div className="empty-state compact">
+                <h3>Select a bus stop</h3>
+                <p>Choose a stop from the filtered list to show live departures.</p>
+              </div>
+            )}
+          </div>
+        </aside>
       </section>
     </main>
   )
